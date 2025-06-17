@@ -1,0 +1,17 @@
+[project]
+name = "repstep"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fsspec>=2025.5.1",
+    "gitpython>=3.1.44",
+    "huggingface-hub[cli]>=0.33.0",
+    "pandas>=2.3.0",
+    "pyarrow>=20.0.0",
+]
+
+[tool.mypy]
+no_implicit_optional = true
+check_untyped_defs = true
