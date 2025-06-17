@@ -33,6 +33,11 @@ def build_retrieve_swe_parser(subparser: argparse.ArgumentParser):
     subparser.add_argument("--embedding_model", type=str, default="o4-mini")
 
     subparser.add_argument(
+        "--filter_multimodal",
+        action="store_true",
+        help="Filter out files for multimodal SWE-bench",
+    )
+    subparser.add_argument(
         "--filter_model",
         type=str,
         default=None,
@@ -43,14 +48,6 @@ def build_retrieve_swe_parser(subparser: argparse.ArgumentParser):
         type=int,
         default=300,
         help="Number of snippets to initially filter down to using the filter model",
-    )
-    subparser.add_argument(
-        "--filter_python", action="store_true", help="Filter out non-python files"
-    )
-    subparser.add_argument(
-        "--filter_multimodal",
-        action="store_true",
-        help="Filter out files for multimodal SWE-bench",
     )
     subparser.add_argument(
         "--retrieve_num",

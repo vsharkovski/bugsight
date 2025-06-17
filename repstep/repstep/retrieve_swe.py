@@ -13,6 +13,8 @@ SWE_BENCH_COMMON_SPLITS = {
     "test": "data/test-00000-of-00001.parquet",
 }
 
+MULTIMODAL_EXTENSIONS = set(".js", ".jsx", ".scss", ".frag", ".ts", ".mdx", ".json")
+
 logger = logging.getLogger(__name__)
 
 
@@ -44,10 +46,44 @@ def get_instance_logger(instance_id: str, logs_dir: Path) -> logging.Logger:
     return instance_logger
 
 
+def get_files_filtered(repo_dir: Path, filter_multimodal: bool) -> list[Path]:
+    file_paths = repo_dir.glob("**/*")
+
+    # Filter out test files
+    file_paths = [path for path in file_paths if not any("test" in str(path))]
+
+    if filter_multimodal:
+        file_paths = [
+            path for path in file_paths if path.suffix in MULTIMODAL_EXTENSIONS
+        ]
+
+    # Get absolute paths
+    file_paths = [path.absolute() for path in file_paths]
+
+    return file_paths
+
+
+def get_file_to_contents(
+    file_paths: list[Path], instance_logger: logging.Logger
+) -> dict[Path, str]:
+    file_to_contents = {}
+    for file_path in file_paths:
+        try:
+            with file_path.open() as file:
+                file_to_contents[file_path] = file.read()
+        except Exception as e:
+            instance_logger.error(
+                "Failed to read file %s: %s", file_path, e, exc_info=e
+            )
+
+    return file_to_contents
+
+
 def retrieve_instance(
     instance: pd.Series,
     logs_dir: Path,
     testbed_dir: Path,
+    filter_multimodal_files: bool,
     persist_dir: Path,
     output_file: TextIOWrapper,
 ):
@@ -57,9 +93,15 @@ def retrieve_instance(
 
     repo_id = instance["repo"]
     repo_dir = get_repo(repo_id, testbed_dir, instance_logger)
-    base_commit_id = instance["base_commit"]
-    checkout_commit(repo_dir, base_commit_id, instance_logger)
+    commit_id = instance["base_commit"]
+    checkout_commit(repo_dir, commit_id, instance_logger)
 
+    file_paths = get_files_filtered(repo_dir, filter_multimodal_files)
+    instance_logger.info("Found %s relevant files", len(file_paths))
+
+    file_to_contents = get_file_to_contents(file_paths, instance_logger)
+
+    instance_logger.info("Starting retrieval process")
     instance_logger.info("Using persist directory: %s", persist_dir)
 
 
@@ -88,7 +130,12 @@ def retrieve_swe(args: argparse.Namespace):
 
     for _, instance in swe_df.iterrows():
         retrieve_instance(
-            instance, logs_per_instance_dir, testbed_dir, persist_dir, output_file
+            instance,
+            logs_per_instance_dir,
+            testbed_dir,
+            args.filter_multimodal,
+            persist_dir,
+            output_file,
         )
 
     output_file.close()
