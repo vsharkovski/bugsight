@@ -231,8 +231,9 @@ def process_retrieved_documents(
     retrieved_documents: list[NodeWithScore],
     retrieve_entire_files: bool,
     logger: Logger,
-) -> list[tuple[Path, str]]:
-    retrieved_file_path_and_contents = []
+) -> tuple[list[Path], list[str]]:
+    retrieved_file_paths: list[Path] = []
+    retrieved_file_contents: list[str] = []
 
     if retrieve_entire_files:
         processed_file_paths = set()
@@ -245,9 +246,8 @@ def process_retrieved_documents(
                 processed_file_paths.add(file_path)
                 try:
                     original_content = file_path.open().read()
-                    retrieved_file_path_and_contents.append(
-                        (file_path, original_content)
-                    )
+                    retrieved_file_paths.append(file_path)
+                    retrieved_file_contents.append(original_content)
                 except Exception as e:
                     logger.error(
                         "Could not open file %s for final retrieval: %s",
@@ -261,9 +261,10 @@ def process_retrieved_documents(
             file_path_str = node.metadata[METADATA_FILE_PATH_KEY]
             file_path = Path(file_path_str)
 
-            retrieved_file_path_and_contents.append((file_path, node.text))
+            retrieved_file_paths.append(file_path)
+            retrieved_file_contents.append(node.text)
 
-    return retrieved_file_path_and_contents
+    return retrieved_file_paths, retrieved_file_contents
 
 
 def retrieve(
@@ -276,7 +277,7 @@ def retrieve(
     retrieve_count: int,
     retrieve_entire_files: bool,
     logger: Logger,
-) -> list[tuple[Path, str]]:
+) -> tuple[list[Path], list[str]]:
     embedding_model = get_embedding_model(embedding_model_name)
     retrieval_index = load_or_create_retrieval_index(
         embeddings_dir, prompt, file_paths, filter_options, embedding_model, logger
@@ -292,7 +293,6 @@ def retrieve(
     retrieved_documents = retriever.retrieve(prompt)
     logger.info("Retrieved %s sections")
 
-    retrieved_file_path_and_contents = process_retrieved_documents(
+    return process_retrieved_documents(
         retrieved_documents, retrieve_entire_files, logger
     )
-    return retrieved_file_path_and_contents
