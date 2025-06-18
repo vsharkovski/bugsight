@@ -7,10 +7,15 @@ from llama_index.core import Settings, StorageContext, load_index_from_storage
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.indices.vector_store.base import VectorStoreIndex
 from llama_index.core.retrievers import VectorIndexRetriever
+from llama_index.core.schema import Document, NodeWithScore
 from llama_index.embeddings.openai import OpenAIEmbedding
 
 OPENAI_EMBEDDING_MODELS = ["text-embedding-3-small", "text-embedding-3-large"]
 OPENAI_EMBED_BATCH_SIZE = 128
+
+INDEX_BATCH_SIZES = [128, 64, 1]
+
+METADATA_FILE_PATH_KEY = "File Path"
 
 
 @dataclass
@@ -50,6 +55,41 @@ def get_file_path_to_contents(
     return file_path_to_contents
 
 
+def create_index_with_retry(
+    index_dir: Path,
+    documents: list[Document],
+    embedding_model: BaseEmbedding,
+    candidate_batch_sizes: list[int],
+    logger: Logger,
+) -> VectorStoreIndex:
+    for batch_size in candidate_batch_sizes:
+        try:
+            embedding_model.embed_batch_size = batch_size
+            Settings.embed_model = embedding_model
+            logger.info(
+                "Attempting to create index at %s with batch size %s",
+                index_dir,
+                batch_size,
+            )
+            index = VectorStoreIndex.from_documents(
+                documents, embed_model=embedding_model
+            )
+            index.storage_context.persist(persist_dir=index_dir)
+            return index
+        except Exception as e:
+            logger.warning(
+                "Failed to create index at %s with batch size %s: %s",
+                index_dir,
+                batch_size,
+                e,
+                exc_info=e,
+            )
+
+    raise Exception(
+        f"Could not createa index at {index_dir} with any batch size among {candidate_batch_sizes}"
+    )
+
+
 def create_new_index(
     index_dir: Path,
     file_path_to_contents: dict[Path, str],
@@ -57,9 +97,21 @@ def create_new_index(
     logger: Logger,
 ) -> VectorStoreIndex:
     logger.info("Creating new index at %s", index_dir)
-    Settings.embed_model = embedding_model
+    documents: list[Document] = []
 
-    pass
+    for file_path, file_content in file_path_to_contents.items():
+        metadata = {METADATA_FILE_PATH_KEY: str(file_path)}
+        document = Document(
+            text=file_content,
+            metadata=metadata,
+            metadata_template="{key}: {value}",
+            text_template="{metadata_str}\n-----\nCode:\n{content}",
+        )
+        documents.append(document)
+
+    return create_index_with_retry(
+        index_dir, documents, embedding_model, INDEX_BATCH_SIZES, logger
+    )
 
 
 def load_index(
@@ -123,8 +175,9 @@ def do_filter_retrieval(
 
     filtered_file_path_to_sections: dict[Path, list[str]] = {}
     for node in filtered_documents:
-        file_name = node.metadata["File Name"]
-        sections = filtered_file_path_to_sections.setdefault(file_name, [])
+        file_path_str = node.metadata[METADATA_FILE_PATH_KEY]
+        file_path = Path(file_path_str)
+        sections = filtered_file_path_to_sections.setdefault(file_path, [])
         sections.append(node.text)
 
     filtered_file_path_to_contents = {
@@ -139,10 +192,9 @@ def load_or_create_retrieval_index(
     prompt: str,
     file_paths: list[Path],
     filter_options: Optional[FilterOptions],
-    embedding_model_name: str,
+    embedding_model: BaseEmbedding,
     logger: Logger,
 ) -> VectorStoreIndex:
-    embedding_model = get_embedding_model(embedding_model_name)
     retrieval_index_dir = embeddings_dir / "retrieval_index"
     retrieval_index_exists = is_non_empty_directory(retrieval_index_dir)
     retrieval_index: Optional[VectorStoreIndex] = None
@@ -156,7 +208,10 @@ def load_or_create_retrieval_index(
         retrieval_index = load_index(retrieval_index_dir, embedding_model, logger)
 
     if retrieval_index is None:
-        logger.info("Retrieval index has not been loaded, will create it")
+        logger.info(
+            "Retrieval index has not been loaded, will create it with model %s",
+            embedding_model,
+        )
         if filter_options:
             filter_index_dir = embeddings_dir / "filter_index"
             file_path_to_contents = do_filter_retrieval(
@@ -172,6 +227,45 @@ def load_or_create_retrieval_index(
     return retrieval_index
 
 
+def process_retrieved_documents(
+    retrieved_documents: list[NodeWithScore],
+    retrieve_entire_files: bool,
+    logger: Logger,
+) -> list[tuple[Path, str]]:
+    retrieved_file_path_and_contents = []
+
+    if retrieve_entire_files:
+        processed_file_paths = set()
+
+        for node in retrieved_documents:
+            file_path_str = node.metadata[METADATA_FILE_PATH_KEY]
+            file_path = Path(file_path_str)
+
+            if file_path not in processed_file_paths:
+                processed_file_paths.add(file_path)
+                try:
+                    original_content = file_path.open().read()
+                    retrieved_file_path_and_contents.append(
+                        (file_path, original_content)
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Could not open file %s for final retrieval: %s",
+                        file_path,
+                        e,
+                        exc_info=e,
+                    )
+                    raise e
+    else:
+        for node in retrieved_documents:
+            file_path_str = node.metadata[METADATA_FILE_PATH_KEY]
+            file_path = Path(file_path_str)
+
+            retrieved_file_path_and_contents.append((file_path, node.text))
+
+    return retrieved_file_path_and_contents
+
+
 def retrieve(
     embeddings_dir: Path,
     prompt: str,
@@ -180,16 +274,25 @@ def retrieve(
     embedding_model_name: str,
     just_create_retrieval_index: bool,
     retrieve_count: int,
+    retrieve_entire_files: bool,
     logger: Logger,
 ) -> list[tuple[Path, str]]:
+    embedding_model = get_embedding_model(embedding_model_name)
     retrieval_index = load_or_create_retrieval_index(
-        embeddings_dir, prompt, file_paths, filter_options, embedding_model_name, logger
+        embeddings_dir, prompt, file_paths, filter_options, embedding_model, logger
     )
     if just_create_retrieval_index:
         return []
 
     retriever = VectorIndexRetriever(
         index=retrieval_index,
+        embed_model=embedding_model,
+        similarity_top_k=retrieve_count,
     )
     retrieved_documents = retriever.retrieve(prompt)
-    logger.info("Retrieved %s sections using ")
+    logger.info("Retrieved %s sections")
+
+    retrieved_file_path_and_contents = process_retrieved_documents(
+        retrieved_documents, retrieve_entire_files, logger
+    )
+    return retrieved_file_path_and_contents
