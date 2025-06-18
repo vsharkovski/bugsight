@@ -25,7 +25,7 @@ def build_retrieve_swe_parser(subparser: argparse.ArgumentParser):
     subparser.add_argument("--split", type=str, default="test")
 
     subparser.add_argument(
-        "--embedding_dir",
+        "--embeddings_dir",
         type=str,
         default="embeddings",
         help="Directory for embeddings",
@@ -44,18 +44,17 @@ def build_retrieve_swe_parser(subparser: argparse.ArgumentParser):
         help="Model to use for initial filter. If none is specified, then do not perform initial filtering",
     )
     subparser.add_argument(
-        "--filter_num",
+        "--filter_count",
         type=int,
         default=300,
         help="Number of snippets to initially filter down to using the filter model",
     )
     subparser.add_argument(
-        "--retrieve_num",
+        "--retrieve_count",
         type=int,
         default=100,
         help="Number of snippets to retrieve after filtering",
     )
-
     subparser.add_argument(
         "--entire_file", action="store_true", help="Retrieve entire file contents"
     )

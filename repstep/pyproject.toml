@@ -8,6 +8,7 @@ dependencies = [
     "fsspec>=2025.5.1",
     "gitpython>=3.1.44",
     "huggingface-hub[cli]>=0.33.0",
+    "llama-index>=0.12.42",
     "pandas>=2.3.0",
     "pyarrow>=20.0.0",
 ]
@@ -15,3 +16,7 @@ dependencies = [
 [tool.mypy]
 no_implicit_optional = true
 check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["gitpython", "llama_index"]
+ignore_missing_imports = true
