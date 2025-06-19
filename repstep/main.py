@@ -3,6 +3,8 @@ import logging
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from repstep.logging import LOGGING_FORMAT, ROOT_LOGGING_LEVEL
 from repstep.retrieve_swe import retrieve_swe
 
@@ -25,12 +27,14 @@ def build_retrieve_swe_parser(subparser: argparse.ArgumentParser):
     subparser.add_argument("--split", type=str, default="test")
 
     subparser.add_argument(
-        "--embeddings_dir",
+        "--embedding_dir",
         type=str,
         default="embeddings",
         help="Directory for embeddings",
     )
-    subparser.add_argument("--embedding_model", type=str, default="o4-mini")
+    subparser.add_argument(
+        "--embedding_model", type=str, default="text-embedding-3-small"
+    )
 
     subparser.add_argument(
         "--filter_multimodal",
@@ -124,6 +128,8 @@ def setup_logging(logs_dir: Path):
 
 
 def main(argv=None):
+    load_dotenv()
+
     if argv is None:
         argv = sys.argv[1:]
     parser = build_parser()

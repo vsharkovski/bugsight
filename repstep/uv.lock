@@ -1219,6 +1219,7 @@ dependencies = [
     { name = "llama-index" },
     { name = "pandas" },
     { name = "pyarrow" },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
@@ -1229,6 +1230,7 @@ requires-dist = [
     { name = "llama-index", specifier = ">=0.12.42" },
     { name = "pandas", specifier = ">=2.3.0" },
     { name = "pyarrow", specifier = ">=20.0.0" },
+    { name = "python-dotenv", specifier = ">=1.1.0" },
 ]
 
 [[package]]

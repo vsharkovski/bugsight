@@ -8,7 +8,7 @@ from typing import Any, Optional
 import pandas as pd
 
 from repstep.embeddings import FilterOptions, retrieve
-from repstep.logging import LOGGING_FORMAT, PER_INSTANCE_LOGGING_LEVEL
+from repstep.logging import PER_INSTANCE_LOGGING_LEVEL
 from repstep.repo import checkout_commit, get_repo
 
 SWE_BENCH_COMMON_SPLITS = {
@@ -40,15 +40,15 @@ def get_instance_logger(instance_id: str, logs_dir: Path) -> logging.Logger:
 
     logger.setLevel(PER_INSTANCE_LOGGING_LEVEL)
 
-    log_filepath = logs_dir / f"{logger_name}.log"
-    handler = logging.FileHandler(log_filepath, mode="a")
-    instance_logger.addHandler(handler)
+    # log_filepath = logs_dir / f"{logger_name}.log"
+    # handler = logging.FileHandler(log_filepath, mode="a")
+    # instance_logger.addHandler(handler)
 
-    formatter = logging.Formatter(LOGGING_FORMAT)
-    handler.setFormatter(formatter)
+    # formatter = logging.Formatter(LOGGING_FORMAT)
+    # handler.setFormatter(formatter)
 
     # Don't propagate to the root logger
-    instance_logger.propagate = False
+    # instance_logger.propagate = False
 
     return instance_logger
 
@@ -142,7 +142,7 @@ def retrieve_swe(args: argparse.Namespace):
     testbed_dir = results_dir / "testbed"
     testbed_dir.mkdir(exist_ok=True)
 
-    embeddings_dir_str: str = args.embeddings_dir
+    embeddings_dir_str: str = args.embedding_dir
     embeddings_dir = Path(embeddings_dir_str)
     embeddings_dir.mkdir(parents=True, exist_ok=True)
 

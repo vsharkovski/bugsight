@@ -210,7 +210,7 @@ def load_or_create_retrieval_index(
     if retrieval_index is None:
         logger.info(
             "Retrieval index has not been loaded, will create it with model %s",
-            embedding_model,
+            embedding_model.model_name,
         )
         if filter_options:
             filter_index_dir = embeddings_dir / "filter_index"
@@ -283,7 +283,7 @@ def retrieve(
         embeddings_dir, prompt, file_paths, filter_options, embedding_model, logger
     )
     if just_create_retrieval_index:
-        return []
+        return ([], [])
 
     retriever = VectorIndexRetriever(
         index=retrieval_index,
