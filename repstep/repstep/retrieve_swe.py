@@ -7,14 +7,10 @@ from typing import Any, Optional
 
 import pandas as pd
 
+from repstep.data import load_dataset_from_disk
 from repstep.embeddings import FilterOptions, retrieve
 from repstep.logging import PER_INSTANCE_LOGGING_LEVEL
 from repstep.repo import checkout_commit, get_repo
-
-SWE_BENCH_COMMON_SPLITS = {
-    "dev": "data/dev-00000-of-00001.parquet",
-    "test": "data/test-00000-of-00001.parquet",
-}
 
 MULTIMODAL_EXTENSIONS = set([".js", ".jsx", ".scss", ".frag", ".ts", ".mdx", ".json"])
 
@@ -23,15 +19,6 @@ RETRIEVAL_INSTRUCTION = (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def load_dataset(dataset_name: str, split_key: str) -> pd.DataFrame:
-    logger.info("Loading dataset %s", dataset_name)
-    splits = SWE_BENCH_COMMON_SPLITS
-    swe_df = pd.read_parquet(f"hf://datasets/{dataset_name}/" + splits[split_key])
-    swe_df = swe_df.iloc[:1]
-    logger.info("Loaded dataset %s, %s instances", dataset_name, len(swe_df))
-    return swe_df
 
 
 def get_instance_logger(instance_id: str, logs_dir: Path) -> logging.Logger:
@@ -130,12 +117,8 @@ def retrieve_instance(
     return result
 
 
-def retrieve_swe(args: argparse.Namespace):
+def retrieve_swe(results_dir: Path, logs_dir: Path, args: argparse.Namespace):
     logger.info("Initializing directories")
-    results_dir_str: str = args.results_dir
-    results_dir = Path(results_dir_str)
-    logs_dir = results_dir / "logs"
-
     logs_per_instance_dir = logs_dir / "per_instance"
     logs_per_instance_dir.mkdir(exist_ok=True)
 
@@ -146,7 +129,8 @@ def retrieve_swe(args: argparse.Namespace):
     embeddings_dir = Path(embeddings_dir_str)
     embeddings_dir.mkdir(parents=True, exist_ok=True)
 
-    swe_df = load_dataset(args.dataset, args.split)
+    swe_df = load_dataset_from_disk()
+    swe_df = swe_df.iloc[:1]
 
     # Multithreading is not implemented yet.
     num_threads = 1
