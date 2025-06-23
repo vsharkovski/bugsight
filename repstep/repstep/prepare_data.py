@@ -18,8 +18,8 @@ In both these subsets, for now, we should choose issues that the model was able 
 
 """
 
-INSTANCE_IDS_WITH_S2R = []
-INSTANCE_IDS_NO_S2R = []
+INSTANCE_IDS_WITH_S2R: list[str] = []
+INSTANCE_IDS_NO_S2R: list[str] = []
 
 
 def set_subset_column(swe_df: pd.DataFrame):
