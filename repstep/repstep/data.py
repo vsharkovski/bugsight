@@ -32,5 +32,5 @@ def load_dataset_from_huggingface(dataset_name: str, split_key: str) -> pd.DataF
 
 def load_dataset_from_disk(data_dir: Path) -> pd.DataFrame:
     df_path = data_dir / DEFAULT_DATASET_NAME
-    swe_df = pd.read_parquet(data_dir / df_path)
+    swe_df = pd.read_parquet(df_path)
     return swe_df

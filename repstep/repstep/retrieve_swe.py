@@ -43,8 +43,13 @@ def get_instance_logger(instance_id: str, logs_dir: Path) -> logging.Logger:
 def get_files_filtered(repo_dir: Path, filter_multimodal: bool) -> list[Path]:
     file_paths = list(repo_dir.glob("**/*"))
 
-    # Filter out test files
-    file_paths = [path for path in file_paths if "test" not in str(path)]
+    # Filter out test files, i.e. files containing "test" in their path.
+    # Because all paths by default start with repo_dir,
+    # if this prefix contains "test" in it, all paths will as well.
+    # Therefore relativize paths in relation to this prefix before checking.
+    file_paths = [
+        path for path in file_paths if "test" not in str(path.relative_to(repo_dir))
+    ]
 
     if filter_multimodal:
         file_paths = [
@@ -98,10 +103,11 @@ def retrieve_instance(
     )
     instance_logger.info("Retrieved %s files", len(retrieved_file_paths))
 
+    retrieved_file_paths_strs = [str(path) for path in retrieved_file_paths]
     result = {
         "instance_id": instance_id,
         "problem_description": original_prompt,
-        "found_files": retrieved_file_paths,
+        "found_files": retrieved_file_paths_strs,
         "file_contents": retrieved_file_contents,
     }
 
@@ -129,7 +135,8 @@ def retrieve_swe(results_dir: Path, logs_dir: Path, args: argparse.Namespace):
     embeddings_dir = Path(embeddings_dir_str)
     embeddings_dir.mkdir(parents=True, exist_ok=True)
 
-    swe_df = load_dataset_from_disk()
+    data_dir = results_dir / "data"
+    swe_df = load_dataset_from_disk(data_dir)
     swe_df = swe_df.iloc[:1]
 
     # Multithreading is not implemented yet.

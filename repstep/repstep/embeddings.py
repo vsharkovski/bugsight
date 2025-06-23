@@ -171,7 +171,7 @@ def do_filter_retrieval(
         similarity_top_k=filter_options.filter_count,
     )
     filtered_documents = filter_retriever.retrieve(prompt)
-    logger.info("Retrieved %s sections")
+    logger.info("Retrieved %s sections", len(filtered_documents))
 
     filtered_file_path_to_sections: dict[Path, list[str]] = {}
     for node in filtered_documents:
@@ -291,7 +291,7 @@ def retrieve(
         similarity_top_k=retrieve_count,
     )
     retrieved_documents = retriever.retrieve(prompt)
-    logger.info("Retrieved %s sections")
+    logger.info("Retrieved %s sections", len(retrieved_documents))
 
     return process_retrieved_documents(
         retrieved_documents, retrieve_entire_files, logger
