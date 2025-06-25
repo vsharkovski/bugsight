@@ -1,7 +1,6 @@
 import argparse
 import json
 import logging
-from io import TextIOWrapper
 from pathlib import Path
 from typing import Any, Optional
 
@@ -14,8 +13,13 @@ from repstep.repo import checkout_commit, get_repo
 
 MULTIMODAL_EXTENSIONS = set([".js", ".jsx", ".scss", ".frag", ".ts", ".mdx", ".json"])
 
-RETRIEVAL_INSTRUCTION = (
-    "Find code the code which need to be edited to solve the above issue."
+RETRIEVAL_ISSUE_PROMPT = (
+    "Issue: ```\n{problem_statement}\n```\n\n"
+    "Given the above issue, find the code which needs to be edited to solve the issue."
+)
+RETRIEVAL_TRANSCRIPTION_PROMPT = (
+    "Bug report image transcription: ```\n{transcription}\n```\n\n"
+    "Given the above bug report image transcription, find the code which needs to be edited to solve the issue."
 )
 
 logger = logging.getLogger(__name__)
@@ -64,6 +68,7 @@ def get_files_filtered(repo_dir: Path, filter_multimodal: bool) -> list[Path]:
 
 def retrieve_instance(
     instance: pd.Series,
+    retrieval_field: str,
     testbed_dir: Path,
     filter_multimodal_files: bool,
     filter_options: Optional[FilterOptions],
@@ -72,11 +77,23 @@ def retrieve_instance(
     just_create_retrieval_index: bool,
     retrieve_count: int,
     retrieve_entire_files: bool,
-    output_file: TextIOWrapper,
 ) -> dict[str, Any]:
     instance_id = instance["instance_id"]
     instance_logger = get_instance_logger(instance_id)
-    logger.info("Starting retrieval for instance %s", instance_id)
+    logger.info("Starting retrieval for instance: %s", instance_id)
+
+    if retrieval_field == "problem_statement":
+        retrieval_field_value = instance["problem_statement"]
+        retrieval_prompt = RETRIEVAL_ISSUE_PROMPT.format(
+            problem_statement=retrieval_field_value
+        )
+    elif retrieval_field == "transcription":
+        retrieval_field_value = instance["transcription"]
+        retrieval_prompt = RETRIEVAL_TRANSCRIPTION_PROMPT.format(
+            transcription=retrieval_field_value
+        )
+    else:
+        raise Exception(f"Unsupported retrieval field: {retrieval_field}")
 
     repo_id = instance["repo"]
     repo_dir = get_repo(repo_id, testbed_dir, instance_logger)
@@ -86,9 +103,9 @@ def retrieve_instance(
     file_paths = get_files_filtered(repo_dir, filter_multimodal_files)
     instance_logger.info("Found %s relevant files", len(file_paths))
 
-    instance_logger.info("Starting retrieval process")
-    original_prompt = instance["problem_statement"]
-    retrieval_prompt = f"{original_prompt}\n\n{RETRIEVAL_INSTRUCTION}"
+    instance_logger.info(
+        "Starting retrieval process, retrieving for field %s", retrieval_field
+    )
     retrieved_file_paths, retrieved_file_contents = retrieve(
         embeddings_dir,
         retrieval_prompt,
@@ -105,7 +122,8 @@ def retrieve_instance(
     retrieved_file_paths_strs = [str(path) for path in retrieved_file_paths]
     result = {
         "instance_id": instance_id,
-        "problem_description": original_prompt,
+        "retrieval_field": retrieval_field,
+        "retrieval_field_value": retrieval_field_value,
         "found_files": retrieved_file_paths_strs,
         "file_contents": retrieved_file_contents,
     }
@@ -114,11 +132,6 @@ def retrieve_instance(
         image_assets_obj = json.loads(instance["image_assets"])
         result["image_assets"] = image_assets_obj["problem_statement"]
 
-    json_line = json.dumps(result)
-    output_file.write(json_line)
-    output_file.write("\n")
-    output_file.flush()
-    instance_logger.info("Successfully wrote results to output file")
     return result
 
 
@@ -132,18 +145,17 @@ def retrieve_swe(args: argparse.Namespace):
     embeddings_dir = Path(embeddings_dir_str)
     embeddings_dir.mkdir(parents=True, exist_ok=True)
 
-    data_filepath_str: str = args.data_file
-    data_filepath = Path(data_filepath_str)
-    swe_df = load_dataset_from_disk(data_filepath)
+    retrieval_field: str = args.retrieval_field
+    logger.info("Using retrieval field: %s", retrieval_field)
+
+    instances_filepath_str: str = args.instances_file
+    instances_filepath = Path(instances_filepath_str)
+    logger.info("Loading instances file: %s", instances_filepath)
+    swe_df = load_dataset_from_disk(instances_filepath)
 
     # Multithreading is not implemented yet.
     num_threads = 1
     logger.info("Running with %s thread(s)", num_threads)
-
-    output_filepath_str: str = args.output_file
-    output_filepath = Path(output_filepath_str)
-    output_filepath.parent.mkdir(parents=True, exist_ok=True)
-    output_file = output_filepath.open(mode="w")
 
     filter_options_values = [args.filter_model, args.filter_count]
     if any(v is None for v in filter_options_values):
@@ -162,19 +174,28 @@ def retrieve_swe(args: argparse.Namespace):
     retrieve_count: int = args.retrieve_count
     retrieve_entire_files: bool = args.entire_file
 
-    for _, instance in swe_df.iterrows():
-        retrieve_instance(
-            instance,
-            testbed_dir,
-            args.filter_multimodal,
-            filter_options,
-            embeddings_dir,
-            embedding_model_name,
-            just_create_retrieval_index,
-            retrieve_count,
-            retrieve_entire_files,
-            output_file,
-        )
+    output_filepath_str: str = args.output_file
+    output_filepath = Path(output_filepath_str)
+    output_filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    output_file.close()
+    with output_filepath.open(mode="w") as output_file:
+        for _, instance in swe_df.iterrows():
+            result = retrieve_instance(
+                instance,
+                retrieval_field,
+                testbed_dir,
+                args.filter_multimodal,
+                filter_options,
+                embeddings_dir,
+                embedding_model_name,
+                just_create_retrieval_index,
+                retrieve_count,
+                retrieve_entire_files,
+            )
+
+            json_line = json.dumps(result)
+            output_file.write(json_line)
+            output_file.write("\n")
+            output_file.flush()
+
     logger.info("Completed all retrievals")

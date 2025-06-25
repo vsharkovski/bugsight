@@ -8,6 +8,10 @@ from dotenv import load_dotenv
 from repstep.logging import LOGGING_FORMAT, ROOT_LOGGING_LEVEL
 from repstep.prepare_data import prepare_data
 from repstep.retrieve_swe import retrieve_swe
+from repstep.transcribe import transcribe
+
+DEFAULT_PREPARED_INSTANCES_FILEPATH = "results/data/swe_df.parquet"
+DEFAULT_TRANSCRIPTIONS_FILEPATH = "results/data/swe_df_transcribed.parquet"
 
 
 def build_prepare_data_parser(subparser: argparse.ArgumentParser):
@@ -18,17 +22,42 @@ def build_prepare_data_parser(subparser: argparse.ArgumentParser):
     subparser.add_argument(
         "--output_file",
         type=str,
-        default="results/data/swe_df.parquet",
+        default=DEFAULT_PREPARED_INSTANCES_FILEPATH,
         help="Path of file to save prepared data to",
+    )
+
+
+def build_transcribe_parser(subparser: argparse.ArgumentParser):
+    subparser.add_argument(
+        "--instances_file",
+        type=str,
+        default=DEFAULT_PREPARED_INSTANCES_FILEPATH,
+        help="Path to the prepared dataset whose images should be transcribed",
+    )
+    subparser.add_argument(
+        "--model", type=str, default="gpt-4o-mini", help="Model for image transcription"
+    )
+    subparser.add_argument(
+        "--output_file",
+        type=str,
+        default=DEFAULT_TRANSCRIPTIONS_FILEPATH,
+        help="Output file for the transcription results",
     )
 
 
 def build_retrieve_swe_parser(subparser: argparse.ArgumentParser):
     subparser.add_argument(
-        "--data_file",
+        "--instances_file",
         type=str,
-        default="results/data/swe_df.parquet",
+        default=DEFAULT_PREPARED_INSTANCES_FILEPATH,
         help="Path to the prepared dataset to do retrieval for",
+    )
+    subparser.add_argument(
+        "--retrieval_field",
+        type=str,
+        default="transcription",
+        choices=["problem_statement", "transcription"],
+        help='Field to perform retrieval for. Use "problem_statement" to retrieve for the text in the issue, or "transcription" to retrieve for the transcription of the images in the issue.',
     )
     subparser.add_argument(
         "--testbed_dir",
@@ -40,13 +69,13 @@ def build_retrieve_swe_parser(subparser: argparse.ArgumentParser):
         "--output_file",
         type=str,
         default="retrievals.jsonl",
-        help="Output file name for the retrieval results",
+        help="Output file for the retrieval results",
     )
 
     subparser.add_argument(
         "--embedding_dir",
         type=str,
-        default="embeddings",
+        default="results/embeddings/unspecified",
         help="Directory for embeddings",
     )
     subparser.add_argument(
@@ -101,6 +130,10 @@ def handle_prepare_data(args: argparse.Namespace):
     prepare_data(args)
 
 
+def handle_transcribe(args: argparse.Namespace):
+    transcribe(args)
+
+
 def handle_retrieve_swe(args: argparse.Namespace):
     retrieve_swe(args)
 
@@ -118,17 +151,21 @@ def build_parser():
 
     subparser = parser.add_subparsers(dest="command", required=True)
 
-    get_steps_parser = subparser.add_parser("get_steps")
-    build_get_steps_parser(get_steps_parser)
-    get_steps_parser.set_defaults(func=handle_get_steps)
+    prepare_data_parser = subparser.add_parser("prepare_data")
+    build_prepare_data_parser(prepare_data_parser)
+    prepare_data_parser.set_defaults(func=handle_prepare_data)
+
+    transcribe_parser = subparser.add_parser("transcribe")
+    build_transcribe_parser(transcribe_parser)
+    transcribe_parser.set_defaults(func=handle_transcribe)
 
     retrieve_swe_parser = subparser.add_parser("retrieve_swe")
     build_retrieve_swe_parser(retrieve_swe_parser)
     retrieve_swe_parser.set_defaults(func=handle_retrieve_swe)
 
-    prepare_data_parser = subparser.add_parser("prepare_data")
-    build_prepare_data_parser(prepare_data_parser)
-    prepare_data_parser.set_defaults(func=handle_prepare_data)
+    get_steps_parser = subparser.add_parser("get_steps")
+    build_get_steps_parser(get_steps_parser)
+    get_steps_parser.set_defaults(func=handle_get_steps)
 
     return parser
 
