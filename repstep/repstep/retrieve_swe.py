@@ -21,7 +21,7 @@ RETRIEVAL_INSTRUCTION = (
 logger = logging.getLogger(__name__)
 
 
-def get_instance_logger(instance_id: str, logs_dir: Path) -> logging.Logger:
+def get_instance_logger(instance_id: str) -> logging.Logger:
     logger_name = f"instance_{instance_id}"
     instance_logger = logging.getLogger(logger_name)
 
@@ -64,7 +64,6 @@ def get_files_filtered(repo_dir: Path, filter_multimodal: bool) -> list[Path]:
 
 def retrieve_instance(
     instance: pd.Series,
-    logs_dir: Path,
     testbed_dir: Path,
     filter_multimodal_files: bool,
     filter_options: Optional[FilterOptions],
@@ -76,7 +75,7 @@ def retrieve_instance(
     output_file: TextIOWrapper,
 ) -> dict[str, Any]:
     instance_id = instance["instance_id"]
-    instance_logger = get_instance_logger(instance_id, logs_dir)
+    instance_logger = get_instance_logger(instance_id)
     logger.info("Starting retrieval for instance %s", instance_id)
 
     repo_id = instance["repo"]
@@ -123,28 +122,27 @@ def retrieve_instance(
     return result
 
 
-def retrieve_swe(results_dir: Path, logs_dir: Path, args: argparse.Namespace):
+def retrieve_swe(args: argparse.Namespace):
     logger.info("Initializing directories")
-    logs_per_instance_dir = logs_dir / "per_instance"
-    logs_per_instance_dir.mkdir(exist_ok=True)
-
-    testbed_dir = results_dir / "testbed"
-    testbed_dir.mkdir(exist_ok=True)
+    testbed_dir_str: str = args.testbed_dir
+    testbed_dir = Path(testbed_dir_str)
+    testbed_dir.mkdir(parents=True, exist_ok=True)
 
     embeddings_dir_str: str = args.embedding_dir
     embeddings_dir = Path(embeddings_dir_str)
     embeddings_dir.mkdir(parents=True, exist_ok=True)
 
-    data_dir = results_dir / "data"
-    swe_df = load_dataset_from_disk(data_dir)
-    swe_df = swe_df.iloc[:1]
+    data_filepath_str: str = args.data_file
+    data_filepath = Path(data_filepath_str)
+    swe_df = load_dataset_from_disk(data_filepath)
 
     # Multithreading is not implemented yet.
     num_threads = 1
     logger.info("Running with %s thread(s)", num_threads)
 
-    output_file_name: str = args.output_file
-    output_filepath = results_dir / output_file_name
+    output_filepath_str: str = args.output_file
+    output_filepath = Path(output_filepath_str)
+    output_filepath.parent.mkdir(parents=True, exist_ok=True)
     output_file = output_filepath.open(mode="w")
 
     filter_options_values = [args.filter_model, args.filter_count]
@@ -167,7 +165,6 @@ def retrieve_swe(results_dir: Path, logs_dir: Path, args: argparse.Namespace):
     for _, instance in swe_df.iterrows():
         retrieve_instance(
             instance,
-            logs_per_instance_dir,
             testbed_dir,
             args.filter_multimodal,
             filter_options,

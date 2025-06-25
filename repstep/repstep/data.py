@@ -8,8 +8,6 @@ SWE_BENCH_COMMON_SPLITS = {
     "test": "data/test-00000-of-00001.parquet",
 }
 
-DEFAULT_DATASET_NAME = "swe_df.parquet"
-
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +28,6 @@ def load_dataset_from_huggingface(dataset_name: str, split_key: str) -> pd.DataF
     return swe_df
 
 
-def load_dataset_from_disk(data_dir: Path) -> pd.DataFrame:
-    df_path = data_dir / DEFAULT_DATASET_NAME
-    swe_df = pd.read_parquet(df_path)
-    return swe_df
+def load_dataset_from_disk(data_filepath: Path) -> pd.DataFrame:
+    result = pd.read_parquet(data_filepath)
+    return result

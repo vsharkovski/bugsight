@@ -10,16 +10,37 @@ from repstep.prepare_data import prepare_data
 from repstep.retrieve_swe import retrieve_swe
 
 
-def build_get_steps_parser(subparser: argparse.ArgumentParser):
-    pass
+def build_prepare_data_parser(subparser: argparse.ArgumentParser):
+    subparser.add_argument(
+        "--dataset", type=str, default="princeton-nlp/SWE-bench_Multimodal"
+    )
+    subparser.add_argument("--split", type=str, default="dev")
+    subparser.add_argument(
+        "--output_file",
+        type=str,
+        default="results/data/swe_df.parquet",
+        help="Path of file to save prepared data to",
+    )
 
 
 def build_retrieve_swe_parser(subparser: argparse.ArgumentParser):
     subparser.add_argument(
+        "--data_file",
+        type=str,
+        default="results/data/swe_df.parquet",
+        help="Path to the prepared dataset to do retrieval for",
+    )
+    subparser.add_argument(
+        "--testbed_dir",
+        type=str,
+        default="results/testbed",
+        help="Directory for storing and manipulating repositories",
+    )
+    subparser.add_argument(
         "--output_file",
         type=str,
         default="retrievals.jsonl",
-        help="Output file name for the results",
+        help="Output file name for the retrieval results",
     )
 
     subparser.add_argument(
@@ -72,33 +93,27 @@ def build_retrieve_swe_parser(subparser: argparse.ArgumentParser):
     )
 
 
-def build_prepare_data_parser(subparser: argparse.ArgumentParser):
-    subparser.add_argument(
-        "--dataset", type=str, default="princeton-nlp/SWE-bench_Multimodal"
-    )
-    subparser.add_argument("--split", type=str, default="dev")
-
-
-def handle_get_steps(results_dir: Path, logs_dir: Path, args: argparse.Namespace):
+def build_get_steps_parser(subparser: argparse.ArgumentParser):
     pass
 
 
-def handle_retrieve_swe(results_dir: Path, logs_dir: Path, args: argparse.Namespace):
-    retrieve_swe(results_dir, logs_dir, args)
+def handle_prepare_data(args: argparse.Namespace):
+    prepare_data(args)
 
 
-def handle_prepare_data(results_dir: Path, logs_dir: Path, args: argparse.Namespace):
-    prepare_data(results_dir, args)
+def handle_retrieve_swe(args: argparse.Namespace):
+    retrieve_swe(args)
+
+
+def handle_get_steps(args: argparse.Namespace):
+    pass
 
 
 def build_parser():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--results_dir",
-        type=str,
-        default="results",
-        help="Directory for results and logs",
+        "--logs_dir", type=str, default="results/logs", help="Directory for logs"
     )
 
     subparser = parser.add_subparsers(dest="command", required=True)
@@ -118,14 +133,7 @@ def build_parser():
     return parser
 
 
-def setup_results_dir(args: argparse.Namespace):
-    results_dir = Path(args.results_dir)
-    results_dir.mkdir(parents=True, exist_ok=True)
-    return results_dir
-
-
-def setup_logging(results_dir: Path):
-    logs_dir = results_dir / "logs"
+def setup_logging(logs_dir: Path):
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     root_log_file_name = "repstep.log"
@@ -137,8 +145,6 @@ def setup_logging(results_dir: Path):
         level=ROOT_LOGGING_LEVEL,
     )
 
-    return logs_dir
-
 
 def main(argv=None):
     load_dotenv()
@@ -148,9 +154,10 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    results_dir = setup_results_dir(args)
-    logs_dir = setup_logging(results_dir)
-    args.func(results_dir, logs_dir, args)
+    logs_dir_str: str = args.logs_dir
+    logs_dir = Path(logs_dir_str)
+    setup_logging(logs_dir)
+    args.func(args)
 
 
 if __name__ == "__main__":
